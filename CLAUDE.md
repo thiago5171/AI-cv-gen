@@ -8,7 +8,7 @@ CV Gen is a client-side React app that takes CV data as JSON, validates it again
 
 ## Commands
 
-- `npm run dev` — start Vite dev server
+- `npm run dev` — start Vite dev server (also exposes the dev-only `/api/claude`, `/api/gemini`, and `/api/openrouter` endpoints)
 - `npm run build` — type-check with `tsc -b` then bundle with Vite
 - `npm run lint` — ESLint
 - `node scripts/generate-templates.mjs` — regenerate DOCX templates in `public/templates/` (uses the `docx` library as a devDependency to programmatically build `.docx` files with docxtemplater placeholders)
@@ -18,7 +18,7 @@ No test framework is configured.
 
 ## Architecture
 
-The app has two tabs sharing one CV document. **Manual** is the original flow. **Com IA** generates the CV from a job description via the Claude API, then hands the result to the same document. `useCvDocument` (`src/hooks/`) owns the CV state + export handlers; `CvWorkspace` (`src/components/`) is the editor/preview/actions surface rendered by both tabs. `AiPanel` is lazy-loaded so the Anthropic SDK / pdfjs / mammoth stay out of the Manual tab's initial bundle.
+The app has two tabs sharing one CV document. **Manual** is the original flow. **Com IA** generates the CV from a job description through a selected provider, then hands the result to the same document. `useCvDocument` (`src/hooks/`) owns the CV state + export handlers; `CvWorkspace` (`src/components/`) is the editor/preview/actions surface rendered by both tabs. `AiPanel` is lazy-loaded so the AI SDKs / pdfjs / mammoth stay out of the Manual tab's initial bundle.
 
 ### Data flow
 
@@ -29,13 +29,20 @@ JSON input → AJV validation (cv.schema.json) → CvData type
   └─ Preview:   renderCvHtml() → iframe srcDoc
 
 AI tab: docs → browser text extraction → distill (1 call, structured output)
-        → profile.json (localStorage) → generate/refine (structured output, prompt-cached)
+        → profile.json (localStorage) → generate/refine (structured output)
         → CvData → shared preview/export above
 ```
 
 ### AI modules (`src/lib/ai/`)
 
-Client-side only; key lives in `localStorage`. `extract.ts` turns PDF/DOCX/MD/TXT into compact text in the browser (originals discarded; scanned-PDF base64 kept as a `document` fallback). `profile.ts` distills docs into `profile.json` against `src/data/profile.schema.json`. Two providers behind one interface: `generate.ts`/`profile.ts` (API key, browser SDK) and `local.ts` (Claude Code CLI via the dev-only `/api/claude` endpoint in `scripts/vite-claude-plugin.mjs`, which spawns `claude -p --json-schema`; local dev only, uses the subscription quota). `generate.ts` produces/refines the CV against `cv.schema.json`; the cached prompt puts frozen instructions+schema first and `stableStringify(profile)` at the `cache_control` breakpoint, job description last. `schema.ts` strips API-unsupported JSON-Schema keywords (only for the copy sent to the model; AJV still uses the original). `cost.ts` prices usage. `storage.ts` = localStorage + IndexedDB (`idb`) + export/import. Model default `claude-sonnet-5`. No test framework — pure functions verified manually.
+Client-side only. `extract.ts` turns PDF/DOCX/MD/TXT into compact text in the browser (originals discarded; scanned-PDF base64 kept as a `document` fallback). `profile.ts` distills docs into `profile.json` against `src/data/profile.schema.json`. Four providers behind one shape (`distill` / `generate` / `refine`), selected in `useAiTab`:
+
+- `generate.ts`/`profile.ts` — Anthropic API key, browser SDK, real prompt caching. Key in `localStorage`.
+- `local.ts` — Claude Code CLI via the dev-only `/api/claude` endpoint in `scripts/vite-claude-plugin.mjs`, which spawns `claude -p --json-schema`. Uses the subscription quota.
+- `gemini.ts` — Gemini API free tier via the dev-only `/api/gemini` endpoint in `scripts/vite-gemini-plugin.mjs`, which calls `@google/genai` `models.generateContent` with `responseJsonSchema`. `GEMINI_API_KEY` is read from `.env.local` by the Vite process and never reaches the browser; the endpoint enforces a model allowlist so only free-tier models can be used. No cross-call cache, so refine resends the current CV.
+- `openrouter.ts` — OpenRouter Free Router via the dev-only `/api/openrouter` endpoint in `scripts/vite-openrouter-plugin.mjs`, which calls `@openrouter/sdk` with strict JSON schema, response healing, and `requireParameters`. `OPENROUTER_API_KEY` is read from `.env.local` by Vite and never reaches the browser; the endpoint allows only `openrouter/free`, so OpenRouter chooses a compatible free upstream model automatically. No cross-call cache, so refine resends the current CV.
+
+`schema.ts` strips JSON-Schema keywords per vendor (`sanitizeSchemaForApi` for Anthropic, `sanitizeSchemaForGemini` for Gemini, `sanitizeSchemaForOpenRouter` for the cross-provider Free Router); AJV still validates against the original. `cost.ts` prices usage — Anthropic models carry real rates, Gemini free-tier models and OpenRouter Free Router price at zero and are flagged `free`. Each provider keeps its own model id in `AiSettings` (`model`, `geminiModel`, or `openrouterModel`) so switching providers cannot select an invalid model. `storage.ts` = localStorage + IndexedDB (`idb`) + export/import, and migrates the legacy `local`/`api` provider values. No test framework — pure functions verified manually.
 
 ### Key modules
 

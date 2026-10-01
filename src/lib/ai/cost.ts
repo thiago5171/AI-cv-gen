@@ -1,17 +1,20 @@
 /**
  * cost.ts
  * Token pricing and cost estimation for the models offered in the AI tab.
- * Prices are USD per 1M tokens (Anthropic first-party API rates). Cache writes
- * bill at ~1.25x the input rate, cache reads at ~0.1x.
+ * Anthropic prices are USD per 1M tokens (first-party API rates); cache writes
+ * bill at ~1.25x the input rate, cache reads at ~0.1x. Gemini free-tier models
+ * and the OpenRouter Free Router price at zero and are flagged `free` instead
+ * of being estimated.
  */
 
-import type { AiModelId } from "./types";
+import type { AiModelId, AnthropicModelId, GeminiModelId, OpenRouterModelId } from "./types";
 
 export type ModelInfo = {
   id: AiModelId;
   label: string;
   inputPerM: number;
   outputPerM: number;
+  free?: boolean;
 };
 
 // Keep the cheaper model first — it is the default.
@@ -20,10 +23,25 @@ export const MODELS: ModelInfo[] = [
   { id: "claude-opus-5", label: "Opus 5 (mais capaz)", inputPerM: 5, outputPerM: 25 },
 ];
 
-export const DEFAULT_MODEL: AiModelId = "claude-sonnet-5";
+// Free tier only. Gemini 3.x Pro is paid-only and is deliberately absent.
+export const GEMINI_MODELS: ModelInfo[] = [
+  { id: "gemini-3.8-flash", label: "Gemini 3.8 Flash (rápido)", inputPerM: 0, outputPerM: 0, free: true },
+  { id: "gemini-2.5-pro", label: "Gemini 2.5 Pro (mais capaz)", inputPerM: 0, outputPerM: 0, free: true },
+];
+
+// The router selects a currently available free model that supports the request.
+export const OPENROUTER_MODELS: ModelInfo[] = [
+  { id: "openrouter/free", label: "Free Router (automático)", inputPerM: 0, outputPerM: 0, free: true },
+];
+
+export const DEFAULT_MODEL: AnthropicModelId = "claude-sonnet-5";
+export const DEFAULT_GEMINI_MODEL: GeminiModelId = "gemini-3.8-flash";
+export const DEFAULT_OPENROUTER_MODEL: OpenRouterModelId = "openrouter/free";
+
+const ALL_MODELS = [...MODELS, ...GEMINI_MODELS, ...OPENROUTER_MODELS];
 
 export function modelInfo(id: AiModelId): ModelInfo {
-  return MODELS.find((m) => m.id === id) ?? MODELS[0];
+  return ALL_MODELS.find((m) => m.id === id) ?? MODELS[0];
 }
 
 export type UsageLike = {
@@ -39,6 +57,7 @@ export type CostBreakdown = {
   cacheWriteTokens: number;
   cacheReadTokens: number;
   usd: number;
+  free?: boolean;
 };
 
 export function estimateCost(usage: UsageLike, model: AiModelId): CostBreakdown {
@@ -55,7 +74,7 @@ export function estimateCost(usage: UsageLike, model: AiModelId): CostBreakdown 
       outputTokens * info.outputPerM) /
     1_000_000;
 
-  return { inputTokens, outputTokens, cacheWriteTokens, cacheReadTokens, usd };
+  return { inputTokens, outputTokens, cacheWriteTokens, cacheReadTokens, usd, free: info.free };
 }
 
 export function formatUsd(usd: number): string {

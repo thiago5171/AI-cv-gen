@@ -11,9 +11,10 @@ export const DISTILL_INSTRUCTIONS = [
   "",
   "Regras:",
   "- Não invente dados. Se algo não estiver nos documentos, omita ou deixe vazio.",
+  "- Antes de considerar uma informação ausente, consulte todos os documentos e textos fornecidos como contexto.",
   "- Consolide experiências duplicadas entre documentos em uma entrada só.",
   "- Preserve métricas e números nos bullets (%, valores, quantidades).",
-  "- Datas no formato original dos documentos.",
+  "- Preserve as datas exatamente no formato original do contexto; não normalize, traduza, complete ou invente datas.",
   "- Retorne apenas o JSON do perfil, sem markdown ou comentários.",
 ].join("\n");
 
@@ -26,7 +27,11 @@ export const GENERATE_INSTRUCTIONS = [
   "Regras:",
   "- Selecione e ordene experiências, bullets e skills conforme a relevância para a descrição da vaga.",
   "- Reescreva bullets para linguagem clara e amigável a ATS, mantendo a veracidade e as métricas.",
-  "- Todos os campos obrigatórios do schema do CV devem estar presentes.",
+  "- Não inclua a propriedade top-level `summary`; o CV gerado não deve ter resumo profissional geral.",
+  "- Consulte o perfil canônico e, em refinamentos, o CV atual antes de concluir que falta uma informação.",
+  "- Para startDate e endDate, preserve exatamente o formato encontrado no contexto (por exemplo: Abr/2024, 2020, Present ou Emprego atual). Não normalize, traduza, complete ou invente datas.",
+  "- Confira o array `required` do schema antes de responder. Nunca omita campos obrigatórios, inclusive campos obrigatórios dentro de experience, education, links, languages e certifications quando esses objetos existirem.",
+  "- Se um dado obrigatório não existir após consultar todo o contexto, mantenha a chave obrigatória com string vazia ou array vazio, em vez de inventar informação.",
   "- Cada experiência precisa de responsibilities, keyResults e skills.",
   "- Retorne apenas o JSON do CV, sem markdown ou comentários.",
 ].join("\n");

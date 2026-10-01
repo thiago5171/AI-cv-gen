@@ -1,10 +1,22 @@
 import type { CostBreakdown } from "./cost";
 
-export type AiModelId = "claude-sonnet-5" | "claude-opus-5";
+export type AnthropicModelId = "claude-sonnet-5" | "claude-opus-5";
+/** Only models that are free on the Gemini API free tier. */
+export type GeminiModelId = "gemini-3.8-flash" | "gemini-2.5-pro";
+/** OpenRouter selects a compatible free upstream model at request time. */
+export type OpenRouterModelId = "openrouter/free";
+export type AiModelId = AnthropicModelId | GeminiModelId | OpenRouterModelId;
 export type Effort = "low" | "medium" | "high";
 
+/** Local API providers call dev-only endpoints and keep their keys off the browser. */
+export type AiProvider = "claude-local" | "anthropic-api" | "gemini-local" | "openrouter-local";
+
+// Each provider keeps its own model so switching providers can never select an
+// id the other API would reject.
 export type AiSettings = {
-  model: AiModelId;
+  model: AnthropicModelId;
+  geminiModel: GeminiModelId;
+  openrouterModel: OpenRouterModelId;
   effort: Effort;
 };
 
@@ -30,6 +42,8 @@ export type TokenUsage = {
   cacheReadTokens: number;
   usd: number;
   model: AiModelId;
+  /** True when the call ran on a no-charge tier, so `usd: 0` is a fact and not an estimate. */
+  free?: boolean;
 };
 
 export function usageFromCost(cost: CostBreakdown, model: AiModelId): TokenUsage {
@@ -40,6 +54,7 @@ export function usageFromCost(cost: CostBreakdown, model: AiModelId): TokenUsage
     cacheReadTokens: cost.cacheReadTokens,
     usd: cost.usd,
     model,
+    free: cost.free,
   };
 }
 

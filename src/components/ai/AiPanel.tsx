@@ -1,10 +1,15 @@
 import { useRef, useState } from "react";
 import type { CvDocument } from "../../hooks/useCvDocument";
 import { useAiTab } from "../../hooks/useAiTab";
-import { MODELS } from "../../lib/ai/cost";
+import { GEMINI_MODELS, MODELS, OPENROUTER_MODELS } from "../../lib/ai/cost";
 import { CvWorkspace } from "../CvWorkspace";
 import { TokenPanel } from "./TokenPanel";
-import type { AiModelId, Effort } from "../../lib/ai/types";
+import type {
+  AnthropicModelId,
+  Effort,
+  GeminiModelId,
+  OpenRouterModelId,
+} from "../../lib/ai/types";
 
 const EFFORTS: Effort[] = ["low", "medium", "high"];
 
@@ -26,36 +31,70 @@ export function AiPanel({ doc }: { doc: CvDocument }) {
         <div className="provider-toggle">
           <button
             type="button"
-            className={`provider-btn ${ai.provider === "local" ? "active" : ""}`}
-            onClick={() => ai.updateProvider("local")}
+            className={`provider-btn ${ai.provider === "claude-local" ? "active" : ""}`}
+            onClick={() => ai.updateProvider("claude-local")}
           >
             Claude Code (local)
             <small>usa sua assinatura · sem créditos</small>
           </button>
           <button
             type="button"
-            className={`provider-btn ${ai.provider === "api" ? "active" : ""}`}
-            onClick={() => ai.updateProvider("api")}
+            className={`provider-btn ${ai.provider === "gemini-local" ? "active" : ""}`}
+            onClick={() => ai.updateProvider("gemini-local")}
+          >
+            Gemini (local)
+            <small>free tier · sem cobrança</small>
+          </button>
+          <button
+            type="button"
+            className={`provider-btn ${ai.provider === "openrouter-local" ? "active" : ""}`}
+            onClick={() => ai.updateProvider("openrouter-local")}
+          >
+            OpenRouter (local)
+            <small>modelos grátis · automático</small>
+          </button>
+          <button
+            type="button"
+            className={`provider-btn ${ai.provider === "anthropic-api" ? "active" : ""}`}
+            onClick={() => ai.updateProvider("anthropic-api")}
           >
             API key
             <small>console Anthropic · créditos</small>
           </button>
         </div>
 
-        {ai.provider === "local" ? (
+        {ai.provider === "claude-local" && (
           <p className="ai-warn">
             ℹ Usa o <code>claude</code> CLI (Claude Code) da sua máquina, via
             <code> npm run dev</code>. Consome sua cota do Claude Code, não créditos de API.
             Precisa estar logado no CLI. Não funciona em site publicado (estático).
           </p>
-        ) : (
+        )}
+        {ai.provider === "gemini-local" && (
+          <p className="ai-warn">
+            ℹ Usa a API do Gemini no <b>free tier</b> (sem cobrança). Requer
+            <code> GEMINI_API_KEY</code> no arquivo <code>.env.local</code> e só funciona com
+            <code> npm run dev</code> — a chave fica no servidor, nunca no navegador. Há limite
+            diário por modelo, e no free tier o conteúdo enviado pode ser usado pelo Google para
+            melhorar os produtos deles: evite documentos sensíveis.
+          </p>
+        )}
+        {ai.provider === "openrouter-local" && (
+          <p className="ai-warn">
+            ℹ Usa o OpenRouter Free Router. Requer <code> OPENROUTER_API_KEY</code> no
+            <code> .env.local</code> e só funciona com <code> npm run dev</code> — a chave
+            fica no servidor, nunca no navegador. O OpenRouter escolhe automaticamente um
+            modelo gratuito compatível; limites e disponibilidade podem bloquear a chamada.
+          </p>
+        )}
+        {ai.provider === "anthropic-api" && (
           <p className="ai-warn">
             ⚠ App 100% no navegador. Sua API key fica salva apenas neste browser
             (localStorage) e é enviada direto para a Anthropic. Uso pessoal.
           </p>
         )}
 
-        {ai.provider === "api" && (
+        {ai.provider === "anthropic-api" && (
           <>
             <label className="field-label" htmlFor="ai-key">API key da Anthropic</label>
             <input
@@ -72,34 +111,70 @@ export function AiPanel({ doc }: { doc: CvDocument }) {
         <div className="ai-row">
           <div>
             <label className="field-label" htmlFor="ai-model">Modelo</label>
-            <select
-              id="ai-model"
-              className="ai-input"
-              value={ai.settings.model}
-              onChange={(e) =>
-                ai.updateSettings({ ...ai.settings, model: e.target.value as AiModelId })
-              }
-            >
-              {MODELS.map((m) => (
-                <option key={m.id} value={m.id}>{m.label}</option>
-              ))}
-            </select>
+            {ai.provider === "gemini-local" ? (
+              <select
+                id="ai-model"
+                className="ai-input"
+                value={ai.settings.geminiModel}
+                onChange={(e) =>
+                  ai.updateSettings({
+                    ...ai.settings,
+                    geminiModel: e.target.value as GeminiModelId,
+                  })
+                }
+              >
+                {GEMINI_MODELS.map((m) => (
+                  <option key={m.id} value={m.id}>{m.label}</option>
+                ))}
+              </select>
+            ) : ai.provider === "openrouter-local" ? (
+              <select
+                id="ai-model"
+                className="ai-input"
+                value={ai.settings.openrouterModel}
+                onChange={(e) =>
+                  ai.updateSettings({
+                    ...ai.settings,
+                    openrouterModel: e.target.value as OpenRouterModelId,
+                  })
+                }
+              >
+                {OPENROUTER_MODELS.map((m) => (
+                  <option key={m.id} value={m.id}>{m.label}</option>
+                ))}
+              </select>
+            ) : (
+              <select
+                id="ai-model"
+                className="ai-input"
+                value={ai.settings.model}
+                onChange={(e) =>
+                  ai.updateSettings({ ...ai.settings, model: e.target.value as AnthropicModelId })
+                }
+              >
+                {MODELS.map((m) => (
+                  <option key={m.id} value={m.id}>{m.label}</option>
+                ))}
+              </select>
+            )}
           </div>
-          <div>
-            <label className="field-label" htmlFor="ai-effort">Esforço (avançado)</label>
-            <select
-              id="ai-effort"
-              className="ai-input"
-              value={ai.settings.effort}
-              onChange={(e) =>
-                ai.updateSettings({ ...ai.settings, effort: e.target.value as Effort })
-              }
-            >
-              {EFFORTS.map((e) => (
-                <option key={e} value={e}>{e}</option>
-              ))}
-            </select>
-          </div>
+          {ai.provider !== "gemini-local" && ai.provider !== "openrouter-local" && (
+            <div>
+              <label className="field-label" htmlFor="ai-effort">Esforço (avançado)</label>
+              <select
+                id="ai-effort"
+                className="ai-input"
+                value={ai.settings.effort}
+                onChange={(e) =>
+                  ai.updateSettings({ ...ai.settings, effort: e.target.value as Effort })
+                }
+              >
+                {EFFORTS.map((e) => (
+                  <option key={e} value={e}>{e}</option>
+                ))}
+              </select>
+            </div>
+          )}
         </div>
         <div className="ai-row ai-backup">
           <button type="button" className="btn btn-outline btn-sm" onClick={() => ai.exportConfig(false)}>
