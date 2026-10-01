@@ -18,6 +18,18 @@ export type Status = {
 
 export const toPrettyJson = (value: unknown) => JSON.stringify(value, null, 2);
 
+const filenameTemplate = (import.meta.env.VITE_CV_FILENAME?.trim() || "cv")
+  .replace(/[\\/:*?"<>|]+/g, "-")
+  .replace(/\.(docx|pdf|html)$/i, "") || "cv";
+
+function exportFilename(language: CvLanguage, extension: "docx" | "pdf" | "html"): string {
+  const languageCode = language === "en-US" ? "en" : "pt";
+  const base = /\{lang\}/i.test(filenameTemplate)
+    ? filenameTemplate.replace(/\{lang\}/gi, languageCode)
+    : `${filenameTemplate}-${languageCode}`;
+  return `${base}.${extension}`;
+}
+
 /**
  * Owns the CV document state (JSON text, language, validation, preview) and
  * the export handlers. Shared by the Manual and AI tabs so both work on the
@@ -115,7 +127,7 @@ export function useCvDocument() {
       );
 
       if (!("error" in docxResult)) {
-        downloadBlob(docxResult.blob, `cv-${language}.docx`);
+        downloadBlob(docxResult.blob, exportFilename(language, "docx"));
         setStatus({
           type: result.injection ? "info" : "ok",
           message: result.injection
@@ -141,7 +153,7 @@ export function useCvDocument() {
 
     const html = renderCvHtml(data, language);
     const htmlBlob = new Blob([html], { type: "text/html;charset=utf-8" });
-    downloadBlob(htmlBlob, `cv-${language}.html`);
+  downloadBlob(htmlBlob, exportFilename(language, "html"));
     setStatus({
       type: "ok",
       message: "CV exportado como HTML. Abra no browser e use Ctrl+P para imprimir como DOCX/PDF.",
@@ -162,7 +174,11 @@ export function useCvDocument() {
 
     try {
       const html = renderCvHtml(data, language);
-      await downloadPdfFromHtml(html, `cv-${language}.pdf`, result.injection ?? null);
+      await downloadPdfFromHtml(
+        html,
+        exportFilename(language, "pdf"),
+        result.injection ?? null,
+      );
       setStatus({
         type: result.injection ? "info" : "ok",
         message: result.injection

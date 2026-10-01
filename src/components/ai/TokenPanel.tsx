@@ -27,7 +27,10 @@ export function TokenPanel({ last, session, cacheWarning }: Props) {
               <li><span>Cache escrito</span><b>{last.cacheWriteTokens.toLocaleString()}</b></li>
               <li><span>Cache lido</span><b>{last.cacheReadTokens.toLocaleString()}</b></li>
               <li><span>Output</span><b>{last.outputTokens.toLocaleString()}</b></li>
-              <li className="token-total"><span>Custo</span><b>{formatUsd(last.usd)}</b></li>
+              <li className="token-total">
+                <span>Custo</span>
+                <b>{last.free ? "Grátis (free tier)" : formatUsd(last.usd)}</b>
+              </li>
             </ul>
           ) : (
             <p className="ai-hint">Nenhuma chamada ainda.</p>
@@ -43,7 +46,10 @@ export function TokenPanel({ last, session, cacheWarning }: Props) {
           </ul>
         </div>
       </div>
-      <p className="ai-hint">Custo estimado (tabela de preços da API). Confirme na sua conta Anthropic.</p>
+      <p className="ai-hint">
+        Custo estimado pela tabela de preços da API — confirme na sua conta Anthropic. Chamadas
+        pelo Gemini no free tier não geram cobrança e entram como zero.
+      </p>
     </section>
   );
 }

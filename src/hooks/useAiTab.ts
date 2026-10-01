@@ -4,18 +4,26 @@ import { extractFile, makeTextDoc } from "../lib/ai/extract";
 import { distillProfile } from "../lib/ai/profile";
 import { generateCv, refineCv } from "../lib/ai/generate";
 import { distillProfileLocal, generateCvLocal, refineCvLocal } from "../lib/ai/local";
+import { distillProfileGemini, generateCvGemini, refineCvGemini } from "../lib/ai/gemini";
+import {
+  distillProfileOpenRouter,
+  generateCvOpenRouter,
+  refineCvOpenRouter,
+} from "../lib/ai/openrouter";
 import { DEFAULT_MODEL } from "../lib/ai/cost";
 import * as store from "../lib/ai/storage";
 
-export type AiProvider = "local" | "api";
 import { toPrettyJson } from "./useCvDocument";
 import type {
+  AiProvider,
   AiSettings,
   BackgroundDoc,
   ConversationTurn,
   HistoryEntry,
   TokenUsage,
 } from "../lib/ai/types";
+
+export type { AiProvider };
 
 const uid = () =>
   crypto.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -143,9 +151,13 @@ export function useAiTab(loadCv: (cv: unknown, message?: string) => void) {
     setStatus({ type: "loading", message: "Destilando perfil canônico (1 chamada)..." });
     try {
       const { profile, usage } =
-        provider === "local"
+        provider === "claude-local"
           ? await distillProfileLocal(docs, settings)
-          : await distillProfile(requireClient(), docs, settings);
+          : provider === "gemini-local"
+            ? await distillProfileGemini(docs, settings)
+            : provider === "openrouter-local"
+              ? await distillProfileOpenRouter(docs, settings)
+              : await distillProfile(requireClient(), docs, settings);
       store.saveProfile(profile);
       setProfileText(toPrettyJson(profile));
       setHasProfile(true);
@@ -180,9 +192,13 @@ export function useAiTab(loadCv: (cv: unknown, message?: string) => void) {
     try {
       const profile = JSON.parse(profileText);
       const result =
-        provider === "local"
+        provider === "claude-local"
           ? await generateCvLocal(profile, jobDescription, settings)
-          : await generateCv(requireClient(), profile, jobDescription, settings);
+          : provider === "gemini-local"
+            ? await generateCvGemini(profile, jobDescription, settings)
+            : provider === "openrouter-local"
+              ? await generateCvOpenRouter(profile, jobDescription, settings)
+              : await generateCv(requireClient(), profile, jobDescription, settings);
       setTurns(result.turns);
       addUsage(result.usage);
       loadCv(result.cv, "CV gerado. Veja o preview / exporte na área abaixo.");
@@ -216,12 +232,17 @@ export function useAiTab(loadCv: (cv: unknown, message?: string) => void) {
       try {
         const profile = JSON.parse(profileText);
         const result =
-          provider === "local"
+          provider === "claude-local"
             ? await refineCvLocal(profile, turns, instruction, settings)
-            : await refineCv(requireClient(), profile, turns, instruction, settings);
+            : provider === "gemini-local"
+              ? await refineCvGemini(profile, turns, instruction, settings)
+              : provider === "openrouter-local"
+                ? await refineCvOpenRouter(profile, turns, instruction, settings)
+                : await refineCv(requireClient(), profile, turns, instruction, settings);
         setTurns(result.turns);
         setLastUsage(result.usage);
-        setCacheWarning(!result.cacheHit);
+        // Only the Anthropic API path has a cross-call prompt cache to miss.
+        setCacheWarning(provider === "anthropic-api" && !result.cacheHit);
         setSessionUsage((prev) => ({
           inputTokens: prev.inputTokens + result.usage.inputTokens,
           outputTokens: prev.outputTokens + result.usage.outputTokens,
@@ -232,10 +253,12 @@ export function useAiTab(loadCv: (cv: unknown, message?: string) => void) {
         }));
         loadCv(result.cv, "CV refinado.");
         setStatus({
-          type: result.cacheHit ? "ok" : "info",
+          type: result.cacheHit || provider !== "anthropic-api" ? "ok" : "info",
           message: result.cacheHit
             ? "CV refinado (cache reaproveitado)."
-            : "CV refinado — atenção: sem leitura de cache nesta chamada.",
+            : provider === "anthropic-api"
+              ? "CV refinado — atenção: sem leitura de cache nesta chamada."
+              : "CV refinado.",
         });
       } catch (error) {
         setStatus({ type: "error", message: friendlyError(error) });
@@ -306,6 +329,7 @@ export function useAiTab(loadCv: (cv: unknown, message?: string) => void) {
             cacheWriteTokens: lastUsage.cacheWriteTokens,
             cacheReadTokens: lastUsage.cacheReadTokens,
             usd: lastUsage.usd,
+            free: lastUsage.free,
           }
         : null,
     [lastUsage],

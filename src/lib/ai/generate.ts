@@ -16,6 +16,7 @@
 
 import type Anthropic from "@anthropic-ai/sdk";
 import cvSchema from "../../data/cv.schema.json";
+import { removeGeneralSummary, withoutGeneralSummarySchema } from "./cv-output";
 import { sanitizeSchemaForApi } from "./schema";
 import { stableStringify } from "./stableStringify";
 import { stopReasonError } from "./client";
@@ -29,12 +30,16 @@ import {
   type TokenUsage,
 } from "./types";
 
+const CV_SCHEMA_FOR_GENERATION = withoutGeneralSummarySchema(
+  cvSchema as Record<string, unknown>,
+);
+
 const CV_FORMAT = {
   type: "json_schema" as const,
-  schema: sanitizeSchemaForApi(cvSchema as Record<string, unknown>),
+  schema: sanitizeSchemaForApi(CV_SCHEMA_FOR_GENERATION),
 };
 
-const CV_SCHEMA_TEXT = JSON.stringify(cvSchema);
+const CV_SCHEMA_TEXT = JSON.stringify(CV_SCHEMA_FOR_GENERATION);
 
 function buildSystem(profile: unknown): Anthropic.TextBlockParam[] {
   return [
@@ -85,7 +90,7 @@ async function run(
   const raw = collectText(message);
   let cv: unknown;
   try {
-    cv = JSON.parse(raw);
+    cv = removeGeneralSummary(JSON.parse(raw));
   } catch {
     throw new Error("O modelo não retornou um JSON de CV válido. Tente novamente.");
   }
@@ -93,7 +98,7 @@ async function run(
   const cost = estimateCost(message.usage, settings.model);
   return {
     cv,
-    assistantTurn: { role: "assistant", content: raw },
+    assistantTurn: { role: "assistant", content: JSON.stringify(cv) },
     usage: usageFromCost(cost, settings.model),
     cacheHit: (message.usage.cache_read_input_tokens ?? 0) > 0,
   };

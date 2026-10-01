@@ -8,8 +8,9 @@
  */
 
 import { openDB, type IDBPDatabase } from "idb";
-import { DEFAULT_MODEL } from "./cost";
+import { DEFAULT_GEMINI_MODEL, DEFAULT_MODEL, DEFAULT_OPENROUTER_MODEL } from "./cost";
 import type {
+  AiProvider,
   AiSettings,
   BackgroundDoc,
   Effort,
@@ -22,6 +23,8 @@ const LS = {
   apiKey: "cvgen.ai.apiKey",
   provider: "cvgen.ai.provider",
   model: "cvgen.ai.model",
+  geminiModel: "cvgen.ai.geminiModel",
+  openrouterModel: "cvgen.ai.openrouterModel",
   effort: "cvgen.ai.effort",
   profile: "cvgen.ai.profile",
 };
@@ -49,20 +52,31 @@ export function saveApiKey(key: string): void {
   lsSet(LS.apiKey, key || null);
 }
 
-export function loadProvider(): "local" | "api" {
-  return lsGet(LS.provider) === "api" ? "api" : "local";
+const PROVIDERS: AiProvider[] = ["claude-local", "anthropic-api", "gemini-local", "openrouter-local"];
+
+export function loadProvider(): AiProvider {
+  const raw = lsGet(LS.provider);
+  // Values written before the Gemini provider existed.
+  if (raw === "local") return "claude-local";
+  if (raw === "api") return "anthropic-api";
+  return PROVIDERS.find((p) => p === raw) ?? "claude-local";
 }
-export function saveProvider(provider: "local" | "api"): void {
+export function saveProvider(provider: AiProvider): void {
   lsSet(LS.provider, provider);
 }
 
 export function loadSettings(): AiSettings {
   const model = (lsGet(LS.model) as AiSettings["model"]) || DEFAULT_MODEL;
+  const geminiModel = (lsGet(LS.geminiModel) as AiSettings["geminiModel"]) || DEFAULT_GEMINI_MODEL;
+  const openrouterModel =
+    (lsGet(LS.openrouterModel) as AiSettings["openrouterModel"]) || DEFAULT_OPENROUTER_MODEL;
   const effort = (lsGet(LS.effort) as Effort) || "medium";
-  return { model, effort };
+  return { model, geminiModel, openrouterModel, effort };
 }
 export function saveSettings(settings: AiSettings): void {
   lsSet(LS.model, settings.model);
+  lsSet(LS.geminiModel, settings.geminiModel);
+  lsSet(LS.openrouterModel, settings.openrouterModel);
   lsSet(LS.effort, settings.effort);
 }
 
@@ -131,7 +145,8 @@ export type ConfigBundle = {
   profile: unknown | null;
   docs: BackgroundDoc[];
   history: HistoryEntry[];
-  // API key intentionally NOT included by default — it's a secret.
+  // API keys intentionally NOT included by default — they are secrets. The
+  // Local-provider keys are never here: they live only in the dev server's env.
   apiKey?: string;
 };
 
@@ -148,7 +163,13 @@ export async function exportBundle(includeApiKey: boolean): Promise<ConfigBundle
 
 export async function importBundle(bundle: ConfigBundle): Promise<void> {
   if (bundle.version !== 1) throw new Error("Versão de backup não suportada.");
-  saveSettings(bundle.settings);
+  // Older backups may not have the provider-specific model settings.
+  saveSettings({
+    model: bundle.settings?.model ?? DEFAULT_MODEL,
+    geminiModel: bundle.settings?.geminiModel ?? DEFAULT_GEMINI_MODEL,
+    openrouterModel: bundle.settings?.openrouterModel ?? DEFAULT_OPENROUTER_MODEL,
+    effort: bundle.settings?.effort ?? "medium",
+  });
   saveProfile(bundle.profile ?? null);
   if (bundle.apiKey) saveApiKey(bundle.apiKey);
 

@@ -5,8 +5,8 @@ import { CvWorkspace } from "./components/CvWorkspace";
 import { languageOptions } from "./lib/templates";
 import type { CvLanguage } from "./lib/cv-renderer";
 
-// Lazy — keeps the Anthropic SDK, pdfjs, and mammoth out of the Manual tab's
-// initial bundle; loaded only when the "Com IA" tab is first opened.
+// Lazy — keeps AI SDKs, pdfjs, and mammoth out of the Manual tab's initial
+// bundle; loaded only when the "Com IA" tab is first opened.
 const AiPanel = lazy(() =>
   import("./components/ai/AiPanel").then((m) => ({ default: m.AiPanel })),
 );
@@ -48,7 +48,7 @@ const tabGuides: Record<Tab, { title: string; intro: string; steps: GuideStep[];
     steps: [
       {
         title: "Escolha como usar a IA",
-        description: "Em “Configuração”, selecione Claude Code (local) ou API key. Se escolher API key, informe sua chave da Anthropic.",
+        description: "Em “Configuração”, escolha Claude Code, Gemini, OpenRouter ou API Anthropic. Gemini e OpenRouter usam chaves configuradas no servidor local; Anthropic pede a chave na interface.",
       },
       {
         title: "Conte sua trajetória",
