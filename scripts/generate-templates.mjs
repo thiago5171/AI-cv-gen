@@ -17,6 +17,7 @@ import {
   WidthType,
   AlignmentType,
   BorderStyle,
+  UnderlineType,
   convertInchesToTwip,
 } from "docx";
 import { writeFileSync, mkdirSync } from "fs";
@@ -77,6 +78,18 @@ function boldText(text, size = 22) {
 
 function normalText(text, size = 20, color = "000000") {
   return new TextRun({ text, size, color, font: "Calibri" });
+}
+
+const LINK_COLOR = "0563C1"; // same hyperlink blue Word uses
+
+function linkText(text, size = 18) {
+  return new TextRun({
+    text,
+    size,
+    color: LINK_COLOR,
+    font: "Calibri",
+    underline: { type: UnderlineType.SINGLE, color: LINK_COLOR },
+  });
 }
 
 function sectionHeading(text) {
@@ -153,7 +166,10 @@ function buildTemplate(lang) {
     }),
     new Paragraph({
       children: [
-        new TextRun({ text: "{#basicInfo.links}{label} / {/basicInfo.links}", size: 18, color: "000000", font: "Calibri" }),
+        normalText("{#basicInfo.links}", 18),
+        linkText("{label}"),
+        normalText(" / ", 18, "888888"),
+        normalText("{/basicInfo.links}", 18),
         normalText("{basicInfo.email}", 18),
         normalText(" / ", 18, "888888"),
         normalText("{basicInfo.location}", 18),

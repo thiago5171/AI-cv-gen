@@ -100,6 +100,7 @@ const FONT = "Calibri, 'Segoe UI', Arial, sans-serif";
 const C_TEXT = "#000000";
 const C_MUTED = "#000000";
 const C_LIGHT = "#444444";
+const C_LINK = "#0563c1"; // same hyperlink blue Word uses
 
 // ─── Utilities ────────────────────────────────────────────────────────────────
 
@@ -163,7 +164,7 @@ function buildHeader(data: CvData): string {
     const url = stripMd(l.url);
     const label = stripMd(l.label);
     contactParts.push(
-      `<a href="${esc(url)}" style="color:${C_TEXT};text-decoration:none;">${esc(label)}</a>`,
+      `<a href="${esc(url)}" style="color:${C_LINK};text-decoration:underline;">${esc(label)}</a>`,
     );
   });
   if (email)
