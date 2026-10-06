@@ -116,6 +116,14 @@ function stripMd(text: string): string {
   return text.replace(/\[([^\]]+)\]\([^)]+\)/g, "$1");
 }
 
+// Without a scheme the browser resolves "linkedin.com/..." as a relative path.
+function normalizeUrl(url: string): string {
+  const trimmed = url.trim();
+  if (/^(https?:|mailto:|tel:)/i.test(trimmed)) return trimmed;
+  if (/^[a-z][a-z0-9+.-]*:/i.test(trimmed)) return ""; // reject javascript:, data:, etc.
+  return `https://${trimmed.replace(/^\/+/, "")}`;
+}
+
 // ─── Layout helpers ───────────────────────────────────────────────────────────
 
 function twoCol(
@@ -161,10 +169,14 @@ function buildHeader(data: CvData): string {
 
   const contactParts: string[] = [];
   links.forEach((l) => {
-    const url = stripMd(l.url);
+    const url = normalizeUrl(stripMd(l.url));
     const label = stripMd(l.label);
+    if (!url) {
+      contactParts.push(esc(label));
+      return;
+    }
     contactParts.push(
-      `<a href="${esc(url)}" style="color:${C_LINK};text-decoration:underline;">${esc(label)}</a>`,
+      `<a href="${esc(url)}" target="_blank" rel="noopener noreferrer" style="color:${C_LINK};text-decoration:underline;">${esc(label)}</a>`,
     );
   });
   if (email)
